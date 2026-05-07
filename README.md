@@ -288,7 +288,7 @@ SeaORM, Diesel, Prisma, Drizzle, TypeORM, SQLAlchemy, GORM
 Requires Rust 1.75 or later.
 
 ```bash
-git clone https://github.com/nerdsnipe/code-brain
+git clone https://github.com/NerdSnipe-Inc/codebrain
 cd code-brain
 cargo build --release -p codebrain-mcp
 # Binary is at ./target/release/codebrain-mcp
