@@ -1,0 +1,21 @@
+[package]
+name        = "codebrain-mcp"
+version     = "0.1.0"
+edition     = "2021"
+description = "MCP server exposing Code Brain knowledge graph to Claude Code, Cursor, Windsurf, Zed, and any MCP-aware agent"
+license     = "MIT"
+repository  = "https://github.com/nerdsnipe/code-brain"
+keywords    = ["mcp", "claude", "llm", "codegen", "ast"]
+categories  = ["development-tools", "command-line-utilities"]
+
+[[bin]]
+name = "codebrain-mcp"
+path = "src/main.rs"
+
+[dependencies]
+codebrain   = { path = "../codebrain" }
+serde       = { workspace = true }
+serde_json  = { workspace = true }
+anyhow      = { workspace = true }
+tracing     = { workspace = true }
+tracing-subscriber = { workspace = true }

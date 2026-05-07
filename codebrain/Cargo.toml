@@ -1,0 +1,33 @@
+[package]
+name        = "codebrain"
+version     = "0.1.0"
+edition     = "2021"
+description = "Codebase intelligence engine — dependency graph, route detection, schema extraction, blast radius analysis"
+license     = "MIT"
+repository  = "https://github.com/nerdsnipe/code-brain"
+keywords    = ["mcp", "codegen", "ast", "graph", "llm"]
+categories  = ["development-tools"]
+
+[dependencies]
+serde       = { workspace = true }
+serde_json  = { workspace = true }
+anyhow      = { workspace = true }
+tracing     = { workspace = true }
+chrono      = { workspace = true }
+regex       = { workspace = true }
+walkdir     = { workspace = true }
+thiserror   = { workspace = true }
+dirs        = { workspace = true }
+tokio       = { workspace = true }
+
+petgraph            = "0.6"
+tree-sitter         = "0.22"
+tree-sitter-rust    = "0.21"
+tree-sitter-typescript = "0.21"
+tree-sitter-javascript = "0.21"
+tree-sitter-python  = "0.21"
+tree-sitter-go      = "0.21"
+sha2                = "0.10"
+
+[dev-dependencies]
+tempfile = "3"
