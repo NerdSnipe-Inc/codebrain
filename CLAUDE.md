@@ -36,3 +36,6 @@ any task that involves unfamiliar code, cross-file flows, or impact analysis.
 The graph is built once per session. Call `codebrain_scan` explicitly after
 significant structural changes (renaming files, extracting modules, adding
 packages) so the graph reflects the current state.
+
+
+

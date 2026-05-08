@@ -529,6 +529,30 @@ Code Brain uses a two-layer cache to stay fast on repeated runs.
 
 ---
 
+## Roadmap
+
+Known improvements, roughly prioritised by impact:
+
+- [x] **Symbol-level blast radius** (`codebrain_symbol_callers`) — the existing `codebrain_blast_radius` operates at file granularity. If you change one function in a large shared file, it flags every importer of that file — including callers of unrelated symbols. Symbol-level callers walks `Calls` edges in the knowledge graph to return the specific functions that call the target symbol, not just the files that import its module.
+
+- [x] **Community detection MCP surface** (`codebrain_communities`) — Louvain community detection runs after every scan and writes community ids into every node, but agents couldn't query the results directly. Added `codebrain_communities` to expose the community breakdown and cross-community edges.
+
+- [ ] **Symbol-level blast radius: transitive call chain** — the current implementation (`codebrain_symbol_callers`) walks direct and transitive `Calls` edges. A future improvement would also traverse `Implements` and `InheritsFrom` edges so that trait/interface implementations surface as dependents when the interface contract changes.
+
+- [ ] **Betweenness centrality for `codebrain_god_nodes`** — degree centrality (current) ranks frequently-called utility functions and error handlers as "god nodes" because everything calls them, not because they're architecturally load-bearing. Betweenness centrality (which nodes sit on the most shortest paths between other nodes) would surface genuinely structural components.
+
+- [ ] **Incremental graph updates** — the graph is rebuilt fully on each `codebrain_scan`. The SHA-256 AST cache avoids re-parsing unchanged files, but nodes and edges are still reassembled from scratch. A file-watcher with incremental node replacement would let the graph stay current without manual re-scan calls after every code change.
+
+- [ ] **tree-sitter-swift** — Swift extraction currently uses regex rather than tree-sitter due to grammar compatibility constraints. Switching to a tree-sitter grammar would make Swift extraction as reliable and complete as Rust, TypeScript, and Go.
+
+- [ ] **Semantic seed nodes** — BFS/DFS queries are seeded by keyword matching against node labels and file names. If the actual symbol uses different terminology than the query, seeds are missed. A lightweight local embedding index (no API, computed at scan time) would enable semantic similarity seeding that is robust to naming convention differences.
+
+- [ ] **Edge confidence propagation** — `EdgeConfidence::Ambiguous` exists in the type system but is not widely used. Regex-inferred edges (Swift, heuristic import resolution) should be marked as `Inferred` rather than `Extracted` so agents know which parts of the graph to verify before acting on them.
+
+- [ ] **Duplicate file detection** — the benchmark showed the graph does not flag byte-identical files at different paths. A scan-time content-hash comparison across collected files would surface this class of structural problem.
+
+---
+
 ## Real-World Benchmarks
 
 Code Brain was benchmarked head-to-head against raw filesystem exploration (Grep / Glob / Read) across seven tasks of increasing complexity on a real production Swift codebase — the macOS app, an 8-package project with 435 files, 2,891 graph nodes, and 1,673 edges.

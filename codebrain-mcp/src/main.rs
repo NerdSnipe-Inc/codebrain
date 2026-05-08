@@ -1,14 +1,16 @@
 //! `codebrain-mcp` — MCP server for Code Brain codebase intelligence.
 //!
-//! Exposes 7 tools to any MCP-aware client (Claude Code, Cursor, Windsurf, etc.):
+//! Exposes 9 tools to any MCP-aware client (Claude Code, Cursor, Windsurf, etc.):
 //!
-//!   codebrain_scan          — force re-scan the project
-//!   codebrain_context       — BFS context block for a query
-//!   codebrain_context_dfs   — DFS context block for a query
-//!   codebrain_blast_radius  — what breaks if this file changes
-//!   codebrain_routes        — all detected HTTP routes
-//!   codebrain_schemas       — all detected database schemas/models
-//!   codebrain_god_nodes     — most-connected nodes (architectural hot spots)
+//!   codebrain_scan            — force re-scan the project
+//!   codebrain_context         — BFS context block for a query
+//!   codebrain_context_dfs     — DFS context block for a query
+//!   codebrain_blast_radius    — what breaks if this file changes
+//!   codebrain_symbol_callers  — specific callers of a function or type
+//!   codebrain_routes          — all detected HTTP routes
+//!   codebrain_schemas         — all detected database schemas/models
+//!   codebrain_god_nodes       — most-connected nodes (architectural hot spots)
+//!   codebrain_communities     — Louvain community clusters + cross-community edges
 //!
 //! # Usage
 //!
@@ -158,13 +160,15 @@ CLAUDE CODE INTEGRATION:
     }}
 
 TOOLS EXPOSED:
-    codebrain_scan          Force re-scan the project
-    codebrain_context       BFS context block for a natural-language query
-    codebrain_context_dfs   DFS context block (traces call chains)
-    codebrain_blast_radius  Files affected if a given file changes
-    codebrain_routes        All detected HTTP routes
-    codebrain_schemas       All detected database schemas and models
-    codebrain_god_nodes     Most-connected nodes (architectural hot spots)
+    codebrain_scan            Force re-scan the project
+    codebrain_context         BFS context block for a natural-language query
+    codebrain_context_dfs     DFS context block (traces call chains)
+    codebrain_blast_radius    Files affected if a given file changes
+    codebrain_symbol_callers  Callers of a specific function or type (symbol-level)
+    codebrain_routes          All detected HTTP routes
+    codebrain_schemas         All detected database schemas and models
+    codebrain_god_nodes       Most-connected nodes (architectural hot spots)
+    codebrain_communities     Louvain community clusters + cross-community edges
 
 FIRST-RUN NOTE:
     The first tool call triggers a project scan. For large projects this may

@@ -19,7 +19,7 @@ use crate::extract::semantic::SemanticExtractor;
 use crate::formatter;
 use crate::model::CodeGraph;
 use crate::query;
-use crate::types::{BlastRadius, RouteInfo, ScanResult, SchemaModel};
+use crate::types::{BlastRadius, RouteInfo, ScanResult, SchemaModel, SymbolCallers};
 
 /// Cheap-to-clone handle to the CodeBrain scan + graph cache.
 #[derive(Clone)]
@@ -203,6 +203,21 @@ impl CodeBrainHandle {
         ))
     }
 
+    /// Symbol-level caller query.
+    ///
+    /// Walks `Calls` edges backwards from the best-matching node for `symbol`
+    /// up to `max_depth` hops. More precise than `blast_radius` when you know
+    /// the specific function or type being changed.
+    pub fn symbol_callers(&self, symbol: &str, max_depth: usize) -> Option<SymbolCallers> {
+        if let Err(e) = self.scan() {
+            tracing::warn!(err = %e, "codebrain: symbol_callers scan failed");
+            return None;
+        }
+        let graph = self.graph()?;
+        let routes = self.cached().map(|r| r.routes).unwrap_or_default();
+        crate::analyze::symbol_callers(&graph, symbol, max_depth, &routes)
+    }
+
     // ── Filtered query helpers (unchanged from v1) ────────────────────────────
 
     /// Filtered route list by HTTP method and/or path prefix.
@@ -248,5 +263,19 @@ impl CodeBrainHandle {
 
     pub fn config(&self) -> &CodeBrainConfig {
         &self.config
+    }
+
+    // ── Community detection ───────────────────────────────────────────────────
+
+    /// Return Louvain community summaries and cross-community edges.
+    ///
+    /// Returns `None` if no graph is cached (call `scan()` first).
+    pub fn communities(
+        &self,
+    ) -> Option<(Vec<crate::cluster::CommunitySummary>, Vec<crate::analyze::SurprisingEdge>)> {
+        let graph = self.graph()?;
+        let summaries = crate::cluster::community_summary(&graph);
+        let edges = crate::analyze::surprising_connections(&graph);
+        Some((summaries, edges))
     }
 }

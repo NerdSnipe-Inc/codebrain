@@ -134,6 +134,38 @@ pub fn definitions() -> Value {
                 },
                 "required": []
             }
+        },
+        {
+            "name": "codebrain_symbol_callers",
+            "description": "Returns all functions and methods that call a specific symbol, walking the call graph up to max_depth hops. More precise than codebrain_blast_radius when you know the specific function or type being changed — only surfaces callers of that symbol, not every importer of its file.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "symbol": {
+                        "type": "string",
+                        "description": "Symbol name to look up — partial, case-insensitive match against node labels (e.g. 'authenticate', 'DatabasePool', 'process_payment')"
+                    },
+                    "depth": {
+                        "type": "integer",
+                        "description": "How many hops of callers to include (default: 3). depth=1 returns direct callers only."
+                    }
+                },
+                "required": ["symbol"]
+            }
+        },
+        {
+            "name": "codebrain_communities",
+            "description": "Returns the community structure of the knowledge graph — clusters of tightly-connected nodes detected by the Louvain algorithm. Also surfaces cross-community edges (surprising connections between otherwise separate modules).",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "min_size": {
+                        "type": "integer",
+                        "description": "Only show communities with at least this many nodes (default: 2)"
+                    }
+                },
+                "required": []
+            }
         }
     ])
 }
@@ -149,7 +181,9 @@ pub fn call(name: &str, args: &Value, handle: &CodeBrainHandle) -> ToolResult {
         "codebrain_routes"       => tool_routes(args, handle),
         "codebrain_schemas"      => tool_schemas(args, handle),
         "codebrain_god_nodes"    => tool_god_nodes(args, handle),
-        _                        => ToolResult::error(format!("Unknown tool: {name}")),
+        "codebrain_symbol_callers" => tool_symbol_callers(args, handle),
+        "codebrain_communities"    => tool_communities(args, handle),
+        _                          => ToolResult::error(format!("Unknown tool: {name}")),
     }
 }
 
@@ -362,6 +396,98 @@ fn tool_god_nodes(args: &Value, handle: &CodeBrainHandle) -> ToolResult {
         graph.node_count(),
         graph.edge_count(),
     ));
+
+    ToolResult::text(lines.join("\n"))
+}
+
+fn tool_symbol_callers(args: &Value, handle: &CodeBrainHandle) -> ToolResult {
+    let symbol = match args.get("symbol").and_then(Value::as_str) {
+        Some(s) => s.to_string(),
+        None    => return ToolResult::error("Missing required argument: symbol"),
+    };
+    let depth = args.get("depth").and_then(Value::as_u64).unwrap_or(3) as usize;
+
+    match handle.symbol_callers(&symbol, depth) {
+        None => ToolResult::text(format!(
+            "No symbol matching '{symbol}' found in the knowledge graph.\n\
+             Try a shorter or different term, or call codebrain_scan first.\n\
+             Tip: use codebrain_context to explore what's in the graph."
+        )),
+        Some(sc) => {
+            let mut lines = vec![
+                format!(
+                    "Callers of '{}' [{} {}:{}] (depth {}):\n",
+                    sc.target_label, sc.target_file, sc.target_file, sc.target_line, depth
+                ),
+            ];
+
+            if sc.callers.is_empty() {
+                lines.push("  No callers found — this symbol may be a top-level entry point.".to_string());
+            } else {
+                let mut last_depth = 0;
+                for c in &sc.callers {
+                    if c.depth != last_depth {
+                        lines.push(format!("\nDepth {} callers:", c.depth));
+                        last_depth = c.depth;
+                    }
+                    lines.push(format!("  [{}:{}]  {}", c.file, c.line, c.label));
+                }
+            }
+
+            if !sc.affected_files.is_empty() {
+                lines.push(String::new());
+                lines.push(format!("Affected files ({}):", sc.affected_files.len()));
+                for f in &sc.affected_files {
+                    lines.push(format!("  {f}"));
+                }
+            }
+
+            ToolResult::text(lines.join("\n"))
+        }
+    }
+}
+
+fn tool_communities(args: &Value, handle: &CodeBrainHandle) -> ToolResult {
+    let min_size = args.get("min_size").and_then(Value::as_u64).unwrap_or(2) as usize;
+
+    if let Err(e) = handle.scan() {
+        return ToolResult::error(format!("Scan failed: {e:#}"));
+    }
+
+    let (summaries, edges) = match handle.communities() {
+        Some(data) => data,
+        None       => return ToolResult::text(
+            "No knowledge graph available. AST extraction may be disabled \
+             or the project has not been scanned yet."
+        ),
+    };
+
+    let filtered: Vec<_> = summaries.iter().filter(|c| c.size >= min_size).collect();
+
+    if filtered.is_empty() {
+        return ToolResult::text(
+            "Community clustering has not run or the graph is empty. \
+             Try calling codebrain_scan first."
+        );
+    }
+
+    let mut lines = vec![
+        format!("Communities detected by Louvain algorithm ({} total):\n", filtered.len()),
+    ];
+    for c in &filtered {
+        lines.push(format!("  community_{} ({} nodes) — {}", c.id, c.size, c.label));
+    }
+
+    if !edges.is_empty() {
+        lines.push(String::new());
+        lines.push(format!("Cross-community connections ({} total):", edges.len()));
+        for e in &edges {
+            lines.push(format!(
+                "  {} [{}] → {} [{}]",
+                e.from_label, e.from_file, e.to_label, e.to_file,
+            ));
+        }
+    }
 
     ToolResult::text(lines.join("\n"))
 }

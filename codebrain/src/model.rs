@@ -216,6 +216,34 @@ impl CodeGraph {
             .collect()
     }
 
+    /// BFS over incoming `Calls` edges from a set of seed nodes, up to `max_depth`.
+    ///
+    /// Returns `(NodeIndex, depth)` pairs for every reachable caller, excluding
+    /// the seeds themselves. Nodes already visited are not revisited.
+    pub fn callers_bfs(&self, seeds: &[NodeIndex], max_depth: usize) -> Vec<(NodeIndex, usize)> {
+        use std::collections::{HashSet, VecDeque};
+        use crate::types::EdgeKind;
+
+        let mut visited: HashSet<NodeIndex> = seeds.iter().copied().collect();
+        let mut queue: VecDeque<(NodeIndex, usize)> = seeds.iter().map(|&s| (s, 0)).collect();
+        let mut result = Vec::new();
+
+        while let Some((node, depth)) = queue.pop_front() {
+            if depth >= max_depth { continue; }
+            for er in self.inner.edges_directed(node, Direction::Incoming) {
+                let slot = *er.weight();
+                let kind = self.edges.get(slot).map(|e| e.kind);
+                if !matches!(kind, Some(EdgeKind::Calls)) { continue; }
+                let caller = er.source();
+                if visited.insert(caller) {
+                    result.push((caller, depth + 1));
+                    queue.push_back((caller, depth + 1));
+                }
+            }
+        }
+        result
+    }
+
     /// Edges that cross community boundaries — "surprising connections".
     /// Always empty until Louvain assigns non-zero community ids; included
     /// now so the formatter can call it without conditional compilation.

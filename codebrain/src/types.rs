@@ -81,6 +81,34 @@ pub struct BlastRadius {
     pub depth:           usize,
 }
 
+/// Result of a symbol-level caller query.
+///
+/// Unlike `BlastRadius` (which operates on file-level import edges), this
+/// walks `Calls` edges in the knowledge graph to return the specific symbols
+/// that call the target — not every importer of its containing file.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SymbolCallers {
+    pub target_id:      String,
+    pub target_label:   String,
+    pub target_file:    String,
+    pub target_line:    usize,
+    /// Callers at all depths, sorted by depth then file.
+    pub callers:        Vec<CallerInfo>,
+    /// Deduplicated files that contain at least one caller.
+    pub affected_files: Vec<String>,
+    pub depth:          usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CallerInfo {
+    pub id:    String,
+    pub label: String,
+    pub file:  String,
+    pub line:  usize,
+    /// BFS depth from the target (1 = direct caller).
+    pub depth: usize,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EnvVar {
     pub name:    String,

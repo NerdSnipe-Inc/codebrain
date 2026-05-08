@@ -4,7 +4,7 @@
 //! for the formatter and for direct agent queries.
 
 use crate::model::CodeGraph;
-use crate::types::{EdgeConfidence, NodeType};
+use crate::types::{CallerInfo, EdgeConfidence, NodeType, RouteInfo, SymbolCallers};
 
 /// The top most-connected nodes in the graph ("god nodes" in graphify's
 /// terminology). High degree = central abstraction that many parts of the
@@ -103,6 +103,96 @@ pub struct SurprisingEdge {
     pub to_label:   String,
     pub to_file:    String,
     pub confidence: EdgeConfidence,
+}
+
+/// Find all callers of a symbol by label search, walking `Calls` edges in the
+/// knowledge graph up to `max_depth` hops.
+///
+/// `query` is matched case-insensitively against node labels. The best match
+/// (highest incoming degree among candidates) is used as the target. Returns
+/// `None` if no node matches or the graph has no call edges.
+pub fn symbol_callers(
+    graph:     &CodeGraph,
+    query:     &str,
+    max_depth: usize,
+    routes:    &[RouteInfo],
+) -> Option<SymbolCallers> {
+    use std::collections::HashSet;
+
+    // Find candidate nodes by label (case-insensitive substring match).
+    let q = query.to_lowercase();
+    let mut candidates: Vec<_> = graph
+        .inner()
+        .node_indices()
+        .filter_map(|idx| {
+            let node = graph.node_at(idx)?;
+            if node.label.to_lowercase().contains(&q) { Some(idx) } else { None }
+        })
+        .collect();
+
+    if candidates.is_empty() {
+        return None;
+    }
+
+    // Pick the candidate with the highest total degree as the best match.
+    use petgraph::Direction;
+    candidates.sort_by_key(|&idx| {
+        let inner = graph.inner();
+        std::cmp::Reverse(
+            inner.edges_directed(idx, Direction::Incoming).count()
+          + inner.edges_directed(idx, Direction::Outgoing).count()
+        )
+    });
+    let target_idx = candidates[0];
+    let target = graph.node_at(target_idx)?;
+
+    let caller_nodes = graph.callers_bfs(&[target_idx], max_depth);
+
+    let mut callers: Vec<CallerInfo> = caller_nodes
+        .iter()
+        .filter_map(|&(idx, depth)| {
+            let node = graph.node_at(idx)?;
+            Some(CallerInfo {
+                id:    node.id.clone(),
+                label: node.label.clone(),
+                file:  node.file.clone(),
+                line:  node.line,
+                depth,
+            })
+        })
+        .collect();
+    callers.sort_by(|a, b| a.depth.cmp(&b.depth).then(a.file.cmp(&b.file)));
+
+    let affected_files: Vec<String> = {
+        let mut seen: HashSet<&str> = HashSet::new();
+        let mut files: Vec<String> = callers
+            .iter()
+            .filter(|c| seen.insert(&c.file))
+            .map(|c| c.file.clone())
+            .collect();
+        // Also include the target file itself.
+        if seen.insert(&target.file) {
+            files.insert(0, target.file.clone());
+        }
+        files.sort();
+        files
+    };
+
+    // Overlay routes that are served by affected files.
+    let _affected_routes: Vec<&RouteInfo> = routes
+        .iter()
+        .filter(|r| affected_files.contains(&r.file))
+        .collect();
+
+    Some(SymbolCallers {
+        target_id:      target.id.clone(),
+        target_label:   target.label.clone(),
+        target_file:    target.file.clone(),
+        target_line:    target.line,
+        callers,
+        affected_files,
+        depth: max_depth,
+    })
 }
 
 /// Quick stats used by the formatter's graph section header.
